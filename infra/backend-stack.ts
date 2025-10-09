@@ -10,7 +10,7 @@ export class BackendStack extends cdk.Stack {
     // Lambda function
     const helloLambda = new lambda.Function(this, "HelloLambda", {
       runtime: lambda.Runtime.NODEJS_18_X,
-      handler: "hello.handler",
+      handler: "dist/hello.handler", // Use dist/hello.js, export named "handler"
       code: lambda.Code.fromAsset("../backend"),
     });
 
