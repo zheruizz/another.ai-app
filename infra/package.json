@@ -1,0 +1,10 @@
+{
+  "name": "infra",
+  "version": "1.0.0",
+  "main": "app.ts",
+  "devDependencies": {
+    "aws-cdk-lib": "^2.219.0",
+    "constructs": "^10.4.2",
+    "typescript": "^5.9.3"
+  }
+}
