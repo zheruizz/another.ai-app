@@ -2,16 +2,15 @@
   "name": "backend",
   "version": "1.0.0",
   "main": "hello.ts",
-  "type": "module",
-  "dependencies": {
-    "aws-lambda": "^1.0.7"
-  },
   "scripts": {
     "build": "tsc"
   },
+  "dependencies": {
+    "aws-lambda": "^1.0.7"
+  },
   "devDependencies": {
-    "@types/aws-lambda": "^8.10.155",
-    "@types/node": "^24.7.0",
-    "typescript": "^5.9.3"
+    "@types/aws-lambda": "^8.10.119",
+    "@types/node": "^20.10.6",
+    "typescript": "^5.0.0"
   }
 }
