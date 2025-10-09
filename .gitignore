@@ -17,6 +17,9 @@ database/*.db
 infra/.terraform/
 infrastructure/.aws-sam/
 
+# Ignore CDK output
+infra/cdk.out/
+
 # Logs
 logs/
 *.log
