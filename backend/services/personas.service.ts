@@ -1,14 +1,14 @@
-// This file should contain real database queries, here are placeholders.
+import db from "../utils/db";
 
 export async function getPersonas() {
-  // TODO: Implement SELECT * FROM personas
-  return [
-    { id: 1, name: "Luxury Buyer", role: "Shopper", description: "Seeks luxury products", avatar_url: "luxury.png", traits: {}, created_at: "", updated_at: "" },
-    { id: 2, name: "Value Seeker", role: "Shopper", description: "Seeks value deals", avatar_url: "value.png", traits: {}, created_at: "", updated_at: "" }
-  ];
+  const query = `SELECT * FROM personas;`;
+  const result = await db.query(query);
+  return result.rows;
 }
 
 export async function getPersona(personaId: number) {
-  // TODO: Implement SELECT * FROM personas WHERE id = $1
-  return { id: personaId, name: "Luxury Buyer", role: "Shopper", description: "Seeks luxury products", avatar_url: "luxury.png", traits: {}, created_at: "", updated_at: "" };
+  const query = `SELECT * FROM personas WHERE id = $1;`;
+  const values = [personaId];
+  const result = await db.query(query, values);
+  return result.rows[0];
 }

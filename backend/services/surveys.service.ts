@@ -1,32 +1,53 @@
-// This file should contain real database queries, here are placeholders.
-// Replace these with actual queries using your preferred database client.
+import db from "../utils/db";
 
 export async function createSurvey(projectId: number, name: string) {
-  // TODO: Implement INSERT INTO surveys (project_id, name) VALUES ...
-  return { id: 1, projectId, name };
+  const query = `
+    INSERT INTO surveys (project_id, name)
+    VALUES ($1, $2)
+    RETURNING *;
+  `;
+  const values = [projectId, name];
+  const result = await db.query(query, values);
+  return result.rows[0];
 }
 
 export async function getSurveys(projectId?: number) {
-  // TODO: Implement SELECT * FROM surveys WHERE project_id = $1
-  return [{ id: 1, projectId, name: "Demo Survey" }];
+  const query = projectId
+    ? `SELECT * FROM surveys WHERE project_id = $1;`
+    : `SELECT * FROM surveys;`;
+  const values = projectId ? [projectId] : [];
+  const result = await db.query(query, values);
+  return result.rows;
 }
 
 export async function addQuestion(surveyId: number, questionText: string, variantA: string, variantB: string) {
-  // TODO: Implement INSERT INTO survey_questions ...
-  return { id: 1, surveyId, questionText, variantA, variantB };
+  const query = `
+    INSERT INTO survey_questions (survey_id, question_text, variant_a, variant_b)
+    VALUES ($1, $2, $3, $4)
+    RETURNING *;
+  `;
+  const values = [surveyId, questionText, variantA, variantB];
+  const result = await db.query(query, values);
+  return result.rows[0];
 }
 
 export async function runSurvey(surveyId: number, personaIds: number[]) {
-  // TODO: Implement logic to generate synthetic responses and store in survey_responses
+  // Placeholder: Real implementation would generate synthetic responses and insert into survey_responses
+  // For now, just return the inputs
   return { message: "Survey run successfully", surveyId, personaIds };
 }
 
 export async function getSurveyResults(surveyId: number) {
-  // TODO: Implement SELECT * FROM survey_results WHERE survey_id = $1
-  return [{ personaId: 1, variant_a_preference: 60, variant_b_preference: 40, confidence_interval: 5, rationale_clusters: ["..."] }];
+  const query = `
+    SELECT * FROM survey_results WHERE survey_id = $1;
+  `;
+  const values = [surveyId];
+  const result = await db.query(query, values);
+  return result.rows;
 }
 
 export async function deleteSurvey(surveyId: number) {
-  // TODO: Implement DELETE FROM surveys WHERE id = $1 CASCADE
-  return;
+  const query = `DELETE FROM surveys WHERE id = $1;`;
+  const values = [surveyId];
+  await db.query(query, values);
 }

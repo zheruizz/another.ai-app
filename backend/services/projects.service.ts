@@ -1,21 +1,34 @@
-// Example service layer for projects
+import db from "../utils/db";
 
 export async function createProject(userId: number, name: string, description: string) {
-  // Implement actual DB logic here
-  return { id: 1, userId, name, description };
+  const query = `
+    INSERT INTO projects (user_id, name, description)
+    VALUES ($1, $2, $3)
+    RETURNING *;
+  `;
+  const values = [userId, name, description];
+  const result = await db.query(query, values);
+  return result.rows[0];
 }
 
 export async function getProjects(userId?: number) {
-  // Implement actual DB logic here
-  return [{ id: 1, userId, name: "Demo Project", description: "Demo" }];
+  const query = userId
+    ? `SELECT * FROM projects WHERE user_id = $1;`
+    : `SELECT * FROM projects;`;
+  const values = userId ? [userId] : [];
+  const result = await db.query(query, values);
+  return result.rows;
 }
 
 export async function getProject(projectId: number) {
-  // Implement actual DB logic here
-  return { id: projectId, name: "Demo Project", description: "Demo" };
+  const query = `SELECT * FROM projects WHERE id = $1;`;
+  const values = [projectId];
+  const result = await db.query(query, values);
+  return result.rows[0];
 }
 
 export async function deleteProject(projectId: number) {
-  // Implement actual DB logic here
-  return;
+  const query = `DELETE FROM projects WHERE id = $1;`;
+  const values = [projectId];
+  await db.query(query, values);
 }
