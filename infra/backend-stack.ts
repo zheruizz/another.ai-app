@@ -179,7 +179,7 @@ export class BackendStack extends cdk.Stack {
             "method.response.header.Access-Control-Allow-Methods": "'GET,POST,DELETE,OPTIONS'"
           },
           responseTemplates: {
-            "application/json": "{\"status\": \"OK\"}"
+            "application/json": "npm install --save-dev @types/pg{\"status\": \"OK\"}"
           }
         }],
         passthroughBehavior: apigateway.PassthroughBehavior.NEVER,
@@ -197,5 +197,25 @@ export class BackendStack extends cdk.Stack {
         }],
       });
     });
+    // After defining your testDbLambda
+    const testDbLambda = new lambda.Function(this, "TestDbLambda", {
+      runtime: lambda.Runtime.NODEJS_18_X,
+      handler: "dist/test-db.handler",
+      code: lambda.Code.fromAsset("../backend"),
+      vpc,
+      securityGroups: [lambdaSG],
+      vpcSubnets: { subnets: [
+        ec2.Subnet.fromSubnetId(this, "subnet1test", "subnet-0b12559a29fa04790"),
+        ec2.Subnet.fromSubnetId(this, "subnet2test", "subnet-043f5252ea218d1da"),
+        ec2.Subnet.fromSubnetId(this, "subnet3test", "subnet-0ebc8ff15884a84b9"),
+        ec2.Subnet.fromSubnetId(this, "subnet4test", "subnet-0f2c9953441f05d8c"),
+        ec2.Subnet.fromSubnetId(this, "subnet5test", "subnet-08a1a7e857a96af6a"),
+        ec2.Subnet.fromSubnetId(this, "subnet6test", "subnet-00aadc11d067e33ac"),
+      ]},
+      environment: dbEnv,
+    });
+
+    const testDb = api.root.addResource("test-db");
+    testDb.addMethod("GET", new apigateway.LambdaIntegration(testDbLambda));
   }
 }
