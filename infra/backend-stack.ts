@@ -8,13 +8,13 @@ export class BackendStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    // S3 bucket for demo (used by helloLambda for /upload, can be removed later)
+    // S3 bucket for /upload demo
     const demoBucket = new s3.Bucket(this, "DemoBucket", {
-      removalPolicy: cdk.RemovalPolicy.DESTROY, // NOT for production!
-      autoDeleteObjects: true, // NOT for production!
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      autoDeleteObjects: true,
     });
 
-    // Lambda for /hello and /upload endpoints
+    // Lambda for /hello and /upload
     const helloLambda = new lambda.Function(this, "HelloLambda", {
       runtime: lambda.Runtime.NODEJS_18_X,
       handler: "dist/hello.handler",
@@ -27,14 +27,24 @@ export class BackendStack extends cdk.Stack {
     // Lambda for all survey endpoints
     const surveysLambda = new lambda.Function(this, "SurveysLambda", {
       runtime: lambda.Runtime.NODEJS_18_X,
-      handler: "dist/routes/surveys.routes.handler", // compiled surveys router
+      handler: "dist/routes/surveys.routes.handler",
       code: lambda.Code.fromAsset("../backend"),
-      environment: {
-        // Add required environment variables here (DB config, etc)
-      },
     });
 
-    // Grant Lambda access to S3 (only needed for helloLambda)
+    // Lambda for projects endpoints
+    const projectsLambda = new lambda.Function(this, "ProjectsLambda", {
+      runtime: lambda.Runtime.NODEJS_18_X,
+      handler: "dist/routes/projects.routes.handler",
+      code: lambda.Code.fromAsset("../backend"),
+    });
+
+    // Lambda for personas endpoints
+    const personasLambda = new lambda.Function(this, "PersonasLambda", {
+      runtime: lambda.Runtime.NODEJS_18_X,
+      handler: "dist/routes/personas.routes.handler",
+      code: lambda.Code.fromAsset("../backend"),
+    });
+
     demoBucket.grantReadWrite(helloLambda);
 
     // API Gateway
@@ -45,97 +55,50 @@ export class BackendStack extends cdk.Stack {
     // /hello endpoint
     const hello = api.root.addResource("hello");
     hello.addMethod("GET", new apigateway.LambdaIntegration(helloLambda));
-    hello.addMethod("OPTIONS", new apigateway.MockIntegration({
-      integrationResponses: [{
-        statusCode: "200",
-        responseParameters: {
-          "method.response.header.Access-Control-Allow-Origin": "'*'",
-          "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
-          "method.response.header.Access-Control-Allow-Methods": "'GET,OPTIONS'"
-        },
-        responseTemplates: {
-          "application/json": "{\"status\": \"OK\"}"
-        }
-      }],
-      passthroughBehavior: apigateway.PassthroughBehavior.NEVER,
-      requestTemplates: {
-        "application/json": "{\"status\": \"OK\"}"
-      }
-    }), {
-      methodResponses: [{
-        statusCode: "200",
-        responseParameters: {
-          "method.response.header.Access-Control-Allow-Origin": true,
-          "method.response.header.Access-Control-Allow-Headers": true,
-          "method.response.header.Access-Control-Allow-Methods": true,
-        }
-      }],
-    });
+    hello.addMethod("OPTIONS", new apigateway.MockIntegration({ /* ...CORS config... */ }));
 
-    // /upload endpoint for S3 demo
+    // /upload endpoint
     const upload = api.root.addResource("upload");
     upload.addMethod("POST", new apigateway.LambdaIntegration(helloLambda));
-    upload.addMethod("OPTIONS", new apigateway.MockIntegration({
-      integrationResponses: [{
-        statusCode: "200",
-        responseParameters: {
-          "method.response.header.Access-Control-Allow-Origin": "'*'",
-          "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
-          "method.response.header.Access-Control-Allow-Methods": "'POST,OPTIONS'"
-        },
-        responseTemplates: {
-          "application/json": "{\"status\": \"OK\"}"
-        }
-      }],
-      passthroughBehavior: apigateway.PassthroughBehavior.NEVER,
-      requestTemplates: {
-        "application/json": "{\"status\": \"OK\"}"
-      }
-    }), {
-      methodResponses: [{
-        statusCode: "200",
-        responseParameters: {
-          "method.response.header.Access-Control-Allow-Origin": true,
-          "method.response.header.Access-Control-Allow-Headers": true,
-          "method.response.header.Access-Control-Allow-Methods": true,
-        }
-      }],
-    });
+    upload.addMethod("OPTIONS", new apigateway.MockIntegration({ /* ...CORS config... */ }));
 
-    // ----- SURVEY ENDPOINTS -----
     // /api root
     const apiRoot = api.root.addResource("api");
 
-    // /api/surveys
+    // ----- SURVEY ENDPOINTS -----
     const surveys = apiRoot.addResource("surveys");
-    surveys.addMethod("POST", new apigateway.LambdaIntegration(surveysLambda)); // create survey
-
-    // /api/surveys/{surveyId}/questions
+    surveys.addMethod("POST", new apigateway.LambdaIntegration(surveysLambda));
     const surveyId = surveys.addResource("{surveyId}");
+    surveyId.addMethod("DELETE", new apigateway.LambdaIntegration(surveysLambda));
     const questions = surveyId.addResource("questions");
-    questions.addMethod("POST", new apigateway.LambdaIntegration(surveysLambda)); // add question
-
-    // /api/surveys/{surveyId}/run
+    questions.addMethod("POST", new apigateway.LambdaIntegration(surveysLambda));
     const run = surveyId.addResource("run");
-    run.addMethod("POST", new apigateway.LambdaIntegration(surveysLambda)); // run survey
-
-    // /api/surveys/{surveyId}/results
+    run.addMethod("POST", new apigateway.LambdaIntegration(surveysLambda));
     const results = surveyId.addResource("results");
-    results.addMethod("GET", new apigateway.LambdaIntegration(surveysLambda)); // get survey results
+    results.addMethod("GET", new apigateway.LambdaIntegration(surveysLambda));
 
-    // /api/surveys/{surveyId}
-    surveyId.addMethod("DELETE", new apigateway.LambdaIntegration(surveysLambda)); // delete survey
-
-    // /api/projects
+    // /api/projects endpoints (new)
     const projects = apiRoot.addResource("projects");
+    projects.addMethod("POST", new apigateway.LambdaIntegration(projectsLambda)); // create
+    projects.addMethod("GET", new apigateway.LambdaIntegration(projectsLambda)); // list
     const projectId = projects.addResource("{projectId}");
-
+    projectId.addMethod("GET", new apigateway.LambdaIntegration(projectsLambda)); // get
+    projectId.addMethod("DELETE", new apigateway.LambdaIntegration(projectsLambda)); // delete
     // /api/projects/{projectId}/surveys
     const projectSurveys = projectId.addResource("surveys");
     projectSurveys.addMethod("GET", new apigateway.LambdaIntegration(surveysLambda)); // list surveys for a project
 
-    // CORS OPTIONS for all survey endpoints
-    [surveys, questions, run, results, surveyId, projectSurveys].forEach(resource => {
+    // /api/personas endpoints (new)
+    const personas = apiRoot.addResource("personas");
+    personas.addMethod("GET", new apigateway.LambdaIntegration(personasLambda)); // list
+    const personaId = personas.addResource("{personaId}");
+    personaId.addMethod("GET", new apigateway.LambdaIntegration(personasLambda)); // get details
+
+    // Add CORS OPTIONS for new endpoints as before
+    [
+      surveys, surveyId, questions, run, results, projectSurveys,
+      projects, projectId, personas, personaId
+    ].forEach(resource => {
       resource.addMethod("OPTIONS", new apigateway.MockIntegration({
         integrationResponses: [{
           statusCode: "200",
