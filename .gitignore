@@ -9,6 +9,9 @@ dist/
 __pycache__/
 *.pyc
 
+# Backend
+backend/package-lock.json
+
 # Database
 database/*.sqlite
 database/*.db
