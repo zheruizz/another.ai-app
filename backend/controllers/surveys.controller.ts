@@ -48,6 +48,13 @@ export async function addQuestion(
   const match = event.rawPath.match(/\/api\/surveys\/(\d+)\/questions$/);
   const surveyId = match ? Number(match[1]) : undefined;
   const { question_text, variant_a, variant_b } = JSON.parse(event.body || "{}");
+  if (typeof surveyId !== "number") {
+    return {
+      statusCode: 400,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ error: "Invalid survey ID" }),
+    };
+  }
   try {
     const question = await SurveyService.addQuestion(surveyId, question_text, variant_a, variant_b);
     return {
@@ -70,6 +77,13 @@ export async function runSurvey(
   const match = event.rawPath.match(/\/api\/surveys\/(\d+)\/run$/);
   const surveyId = match ? Number(match[1]) : undefined;
   const { persona_ids } = JSON.parse(event.body || "{}");
+  if (typeof surveyId !== "number") {
+    return {
+      statusCode: 400,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ error: "Invalid survey ID" }),
+    };
+  }
   try {
     const result = await SurveyService.runSurvey(surveyId, persona_ids);
     return {
@@ -91,6 +105,13 @@ export async function getSurveyResults(
 ): Promise<APIGatewayProxyResult> {
   const match = event.rawPath.match(/\/api\/surveys\/(\d+)\/results$/);
   const surveyId = match ? Number(match[1]) : undefined;
+  if (typeof surveyId !== "number") {
+    return {
+      statusCode: 400,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ error: "Invalid survey ID" }),
+    };
+  }
   try {
     const results = await SurveyService.getSurveyResults(surveyId);
     return {
@@ -112,6 +133,13 @@ export async function deleteSurvey(
 ): Promise<APIGatewayProxyResult> {
   const match = event.rawPath.match(/\/api\/surveys\/(\d+)$/);
   const surveyId = match ? Number(match[1]) : undefined;
+  if (typeof surveyId !== "number") {
+    return {
+      statusCode: 400,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ error: "Invalid survey ID" }),
+    };
+  }
   try {
     await SurveyService.deleteSurvey(surveyId);
     return {
