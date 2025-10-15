@@ -9,5 +9,11 @@
     "lib": ["ES2020"],
     "types": ["node", "aws-lambda"]
   },
-  "include": ["*.ts"]
+  "include": [
+    "*.ts",
+    "controllers/**/*.ts",
+    "routes/**/*.ts",
+    "services/**/*.ts",
+    "models/**/*.ts"
+  ]
 }
