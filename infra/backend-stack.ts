@@ -8,13 +8,13 @@ export class BackendStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    // S3 bucket for demo
+    // S3 bucket for demo (used by helloLambda for /upload, can be removed later)
     const demoBucket = new s3.Bucket(this, "DemoBucket", {
       removalPolicy: cdk.RemovalPolicy.DESTROY, // NOT for production!
       autoDeleteObjects: true, // NOT for production!
     });
 
-    // Lambda function
+    // Lambda for /hello and /upload endpoints
     const helloLambda = new lambda.Function(this, "HelloLambda", {
       runtime: lambda.Runtime.NODEJS_18_X,
       handler: "dist/hello.handler",
@@ -24,7 +24,17 @@ export class BackendStack extends cdk.Stack {
       },
     });
 
-    // Grant Lambda access to S3
+    // Lambda for all survey endpoints
+    const surveysLambda = new lambda.Function(this, "SurveysLambda", {
+      runtime: lambda.Runtime.NODEJS_18_X,
+      handler: "dist/routes/surveys.routes.handler", // compiled surveys router
+      code: lambda.Code.fromAsset("../backend"),
+      environment: {
+        // Add required environment variables here (DB config, etc)
+      },
+    });
+
+    // Grant Lambda access to S3 (only needed for helloLambda)
     demoBucket.grantReadWrite(helloLambda);
 
     // API Gateway
@@ -90,6 +100,68 @@ export class BackendStack extends cdk.Stack {
           "method.response.header.Access-Control-Allow-Methods": true,
         }
       }],
+    });
+
+    // ----- SURVEY ENDPOINTS -----
+    // /api root
+    const apiRoot = api.root.addResource("api");
+
+    // /api/surveys
+    const surveys = apiRoot.addResource("surveys");
+    surveys.addMethod("POST", new apigateway.LambdaIntegration(surveysLambda)); // create survey
+
+    // /api/surveys/{surveyId}/questions
+    const surveyId = surveys.addResource("{surveyId}");
+    const questions = surveyId.addResource("questions");
+    questions.addMethod("POST", new apigateway.LambdaIntegration(surveysLambda)); // add question
+
+    // /api/surveys/{surveyId}/run
+    const run = surveyId.addResource("run");
+    run.addMethod("POST", new apigateway.LambdaIntegration(surveysLambda)); // run survey
+
+    // /api/surveys/{surveyId}/results
+    const results = surveyId.addResource("results");
+    results.addMethod("GET", new apigateway.LambdaIntegration(surveysLambda)); // get survey results
+
+    // /api/surveys/{surveyId}
+    surveyId.addMethod("DELETE", new apigateway.LambdaIntegration(surveysLambda)); // delete survey
+
+    // /api/projects
+    const projects = apiRoot.addResource("projects");
+    const projectId = projects.addResource("{projectId}");
+
+    // /api/projects/{projectId}/surveys
+    const projectSurveys = projectId.addResource("surveys");
+    projectSurveys.addMethod("GET", new apigateway.LambdaIntegration(surveysLambda)); // list surveys for a project
+
+    // CORS OPTIONS for all survey endpoints
+    [surveys, questions, run, results, surveyId, projectSurveys].forEach(resource => {
+      resource.addMethod("OPTIONS", new apigateway.MockIntegration({
+        integrationResponses: [{
+          statusCode: "200",
+          responseParameters: {
+            "method.response.header.Access-Control-Allow-Origin": "'*'",
+            "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
+            "method.response.header.Access-Control-Allow-Methods": "'GET,POST,DELETE,OPTIONS'"
+          },
+          responseTemplates: {
+            "application/json": "{\"status\": \"OK\"}"
+          }
+        }],
+        passthroughBehavior: apigateway.PassthroughBehavior.NEVER,
+        requestTemplates: {
+          "application/json": "{\"status\": \"OK\"}"
+        }
+      }), {
+        methodResponses: [{
+          statusCode: "200",
+          responseParameters: {
+            "method.response.header.Access-Control-Allow-Origin": true,
+            "method.response.header.Access-Control-Allow-Headers": true,
+            "method.response.header.Access-Control-Allow-Methods": true,
+          }
+        }],
+      });
     });
   }
 }
