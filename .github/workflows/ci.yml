@@ -50,6 +50,7 @@ jobs:
       - name: Build backend
         run: |
           cd backend
+          rm -rf dist
           npm install
           npm run build
 
@@ -62,5 +63,5 @@ jobs:
 
       - name: CDK Deploy
         run: |
-          cd backend
+          cd ../infra
           npx cdk deploy --require-approval=never
