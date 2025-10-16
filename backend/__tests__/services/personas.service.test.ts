@@ -35,7 +35,7 @@ describe("Personas Service", () => {
 
       const result = await getPersona(1);
       expect(result).toEqual(mockRow);
-      expect(db.query).toHaveBeenCalledWith("SSELECT * FROM personas WHERE id = $1;", [1]);
+      expect(db.query).toHaveBeenCalledWith("SELECT * FROM personas WHERE id = $1;", [1]);
     });
 
     it("should throw an error if the persona ID does not exist", async () => {
