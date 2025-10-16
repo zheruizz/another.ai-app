@@ -1,6 +1,10 @@
 import db from "../utils/db";
 
 export async function createProject(userId: number, name: string, description: string) {
+  if (!userId || !name || !description) {
+    throw new Error("Invalid project data");
+  }
+
   const query = `
     INSERT INTO projects (user_id, name, description)
     VALUES ($1, $2, $3)
@@ -24,6 +28,11 @@ export async function getProject(projectId: number) {
   const query = `SELECT * FROM projects WHERE id = $1;`;
   const values = [projectId];
   const result = await db.query(query, values);
+
+  if (result.rows.length === 0) {
+    throw new Error("Project not found");
+  }
+
   return result.rows[0];
 }
 
