@@ -53,6 +53,11 @@ jobs:
           rm -rf dist
           npm install
           npm run build
+        
+      - name: Install dependencies for infra
+        run: |
+          cd infra
+          npm install
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
