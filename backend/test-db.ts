@@ -3,7 +3,7 @@ import db from "./utils/db";
 
 export const handler: APIGatewayProxyHandlerV2 = async () => {
   try {
-    const result = await db.query("SELECT * FROM projects;");
+    const result = await db.query("SELECT * FROM personas;");
     return {
       statusCode: 200,
       body: JSON.stringify({ success: true, result: result.rows }),
