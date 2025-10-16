@@ -1,34 +1,33 @@
 name: CI Pipeline
 
 on:
-  # Trigger the workflow on push to any branch and pull request events
   push:
     branches:
-      - '**' # Trigger on all branches
+      - '**'
   pull_request:
     branches:
-      - '**' # Trigger on all branches
+      - '**'
 
 jobs:
   test:
     name: Run Tests
-    runs-on: ubuntu-latest # Use the latest Ubuntu runner
+    runs-on: ubuntu-latest
 
     steps:
-      # Step 1: Check out the code
       - name: Check out code
         uses: actions/checkout@v3
 
-      # Step 2: Set up Node.js (use the version in your .nvmrc or package.json)
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: 'lts/*' # Use the latest LTS version (edit if you're using a specific version)
+          node-version: 'lts/*'
 
-      # Step 3: Install dependencies
       - name: Install dependencies
-        run: npm install
+        run: |
+          cd backend
+          npm install
 
-      # Step 4: Run tests
       - name: Run tests
-        run: npm test
+        run: |
+          cd backend
+          npm test
