@@ -7,13 +7,15 @@
     "strict": true,
     "skipLibCheck": true,
     "lib": ["ES2020"],
-    "types": ["node", "aws-lambda"]
+    "types": ["node", "aws-lambda", "jest"]
   },
   "include": [
     "*.ts",
     "controllers/**/*.ts",
     "routes/**/*.ts",
     "services/**/*.ts",
-    "models/**/*.ts"
+    "models/**/*.ts",
+    "**/*.ts",
+    "**/*.test.ts"
   ]
 }
