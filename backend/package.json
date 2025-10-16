@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "main": "hello.ts",
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "test": "npx jest --config jest.config.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.500.0",
