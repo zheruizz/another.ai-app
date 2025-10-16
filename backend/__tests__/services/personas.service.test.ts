@@ -18,7 +18,7 @@ describe("Personas Service", () => {
 
       const result = await getPersonas();
       expect(result).toEqual(mockRows);
-      expect(db.query).toHaveBeenCalledWith("SELECT * FROM personas;");
+      expect(db.query).toHaveBeenCalledWith("SSELECT * FROM personas;");
     });
 
     it("should throw an error if the database query fails", async () => {
