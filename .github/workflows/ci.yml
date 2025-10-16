@@ -63,5 +63,5 @@ jobs:
 
       - name: CDK Deploy
         run: |
-          cd ../infra
+          cd infra
           npx cdk deploy --require-approval=never
