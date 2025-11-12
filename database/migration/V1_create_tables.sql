@@ -74,3 +74,31 @@ CREATE TABLE survey_logs (
     variance FLOAT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Add survey_runs table
+CREATE TABLE survey_runs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  survey_id INT REFERENCES surveys(id) ON DELETE CASCADE,
+  user_id INT REFERENCES users(id) ON DELETE SET NULL,
+  status VARCHAR(20) DEFAULT 'pending', -- pending/running/succeeded/failed
+  sample_size INT DEFAULT 20,
+  persona_ids INT[] DEFAULT NULL,
+  model VARCHAR(255),
+  temperature FLOAT,
+  seed INT,
+  estimated_cost FLOAT,
+  actual_cost FLOAT,
+  enable_raw_output BOOLEAN DEFAULT FALSE,
+  notes JSONB,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  started_at TIMESTAMP,
+  finished_at TIMESTAMP
+);
+
+ALTER TABLE survey_responses
+  ADD COLUMN run_id UUID REFERENCES survey_runs(id) ON DELETE SET NULL,
+  ADD COLUMN response_index INT,
+  ADD COLUMN raw_output TEXT; -- optional: store raw JSON/text from LLM
+
+ALTER TABLE survey_results
+  ADD COLUMN run_id UUID REFERENCES survey_runs(id) ON DELETE SET NULL;

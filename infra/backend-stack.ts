@@ -4,6 +4,7 @@ import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as apigateway from "aws-cdk-lib/aws-apigateway";
 import * as ec2 from "aws-cdk-lib/aws-ec2";
 import * as s3 from "aws-cdk-lib/aws-s3";
+import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager"; // NEW
 
 export class BackendStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -36,10 +37,15 @@ export class BackendStack extends cdk.Stack {
       DB_HOST: "another-ai-db.c6bec2a8cygx.us-east-1.rds.amazonaws.com",
       DB_PORT: "5432",
       DB_USER: "master",
-      DB_PASSWORD: "OniiohnVY^8134#$45naf^3e", // For production, use Secrets Manager!
-      DB_NAME: "postgres", // Change if your DB name is different
-      DB_SSL: "true"
+      DB_PASSWORD: "OniiohnVY^8134#$45naf^3e", // TODO: For production, move to Secrets Manager.
+      DB_NAME: "postgres",
+      DB_SSL: "true",
     };
+
+    // OpenAI secret + env config
+    const openAiSecretName = "anotherai/openai-api"; // ensure this matches your Secrets Manager secret name
+    const openAiRegion = "us-east-1";                // region where the secret is stored
+    const openAiSecret = secretsmanager.Secret.fromSecretNameV2(this, "OpenAISecret", openAiSecretName);
 
     // Lambda for /hello and /upload
     const helloLambda = new lambda.Function(this, "HelloLambda", {
@@ -48,37 +54,54 @@ export class BackendStack extends cdk.Stack {
       code: lambda.Code.fromAsset("../backend"),
       vpc,
       securityGroups: [lambdaSG],
-      vpcSubnets: { subnets: [
-        ec2.Subnet.fromSubnetId(this, "subnet1", "subnet-0b12559a29fa04790"),
-        ec2.Subnet.fromSubnetId(this, "subnet2", "subnet-043f5252ea218d1da"),
-        ec2.Subnet.fromSubnetId(this, "subnet3", "subnet-0ebc8ff15884a84b9"),
-        ec2.Subnet.fromSubnetId(this, "subnet4", "subnet-0f2c9953441f05d8c"),
-        ec2.Subnet.fromSubnetId(this, "subnet5", "subnet-08a1a7e857a96af6a"),
-        ec2.Subnet.fromSubnetId(this, "subnet6", "subnet-00aadc11d067e33ac"),
-      ]},
+      vpcSubnets: {
+        subnets: [
+          ec2.Subnet.fromSubnetId(this, "subnet1", "subnet-0b12559a29fa04790"),
+          ec2.Subnet.fromSubnetId(this, "subnet2", "subnet-043f5252ea218d1da"),
+          ec2.Subnet.fromSubnetId(this, "subnet3", "subnet-0ebc8ff15884a84b9"),
+          ec2.Subnet.fromSubnetId(this, "subnet4", "subnet-0f2c9953441f05d8c"),
+          ec2.Subnet.fromSubnetId(this, "subnet5", "subnet-08a1a7e857a96af6a"),
+          ec2.Subnet.fromSubnetId(this, "subnet6", "subnet-00aadc11d067e33ac"),
+        ],
+      },
       environment: {
         ...dbEnv,
         BUCKET_NAME: demoBucket.bucketName,
       },
     });
 
-    // Lambda for all survey endpoints
+    // Lambda for all survey endpoints (LLM used here)
     const surveysLambda = new lambda.Function(this, "SurveysLambda", {
       runtime: lambda.Runtime.NODEJS_18_X,
       handler: "dist/routes/surveys.routes.handler",
       code: lambda.Code.fromAsset("../backend"),
       vpc,
       securityGroups: [lambdaSG],
-      vpcSubnets: { subnets: [
-        ec2.Subnet.fromSubnetId(this, "subnet1s", "subnet-0b12559a29fa04790"),
-        ec2.Subnet.fromSubnetId(this, "subnet2s", "subnet-043f5252ea218d1da"),
-        ec2.Subnet.fromSubnetId(this, "subnet3s", "subnet-0ebc8ff15884a84b9"),
-        ec2.Subnet.fromSubnetId(this, "subnet4s", "subnet-0f2c9953441f05d8c"),
-        ec2.Subnet.fromSubnetId(this, "subnet5s", "subnet-08a1a7e857a96af6a"),
-        ec2.Subnet.fromSubnetId(this, "subnet6s", "subnet-00aadc11d067e33ac"),
-      ]},
-      environment: dbEnv,
+      vpcSubnets: {
+        subnets: [
+          ec2.Subnet.fromSubnetId(this, "subnet1s", "subnet-0b12559a29fa04790"),
+          ec2.Subnet.fromSubnetId(this, "subnet2s", "subnet-043f5252ea218d1da"),
+          ec2.Subnet.fromSubnetId(this, "subnet3s", "subnet-0ebc8ff15884a84b9"),
+          ec2.Subnet.fromSubnetId(this, "subnet4s", "subnet-0f2c9953441f05d8c"),
+          ec2.Subnet.fromSubnetId(this, "subnet5s", "subnet-08a1a7e857a96af6a"),
+          ec2.Subnet.fromSubnetId(this, "subnet6s", "subnet-00aadc11d067e33ac"),
+        ],
+      },
+      environment: {
+        ...dbEnv,
+        // LLM-related environment variables
+        OPENAI_SECRET_NAME: openAiSecretName,
+        OPENAI_REGION: openAiRegion,
+        MODEL_NAME: "gpt-4o-mini",
+        DEFAULT_SAMPLE_SIZE: "20",
+        MAX_SAMPLE_SIZE: "50",
+        ENABLE_RAW_OUTPUT: "false",
+        RUN_COST_CAP_USD: "4",
+      },
     });
+
+    // Allow surveysLambda to read the OpenAI secret
+    openAiSecret.grantRead(surveysLambda);
 
     // Lambda for projects endpoints
     const projectsLambda = new lambda.Function(this, "ProjectsLambda", {
@@ -87,14 +110,16 @@ export class BackendStack extends cdk.Stack {
       code: lambda.Code.fromAsset("../backend"),
       vpc,
       securityGroups: [lambdaSG],
-      vpcSubnets: { subnets: [
-        ec2.Subnet.fromSubnetId(this, "subnet1p", "subnet-0b12559a29fa04790"),
-        ec2.Subnet.fromSubnetId(this, "subnet2p", "subnet-043f5252ea218d1da"),
-        ec2.Subnet.fromSubnetId(this, "subnet3p", "subnet-0ebc8ff15884a84b9"),
-        ec2.Subnet.fromSubnetId(this, "subnet4p", "subnet-0f2c9953441f05d8c"),
-        ec2.Subnet.fromSubnetId(this, "subnet5p", "subnet-08a1a7e857a96af6a"),
-        ec2.Subnet.fromSubnetId(this, "subnet6p", "subnet-00aadc11d067e33ac"),
-      ]},
+      vpcSubnets: {
+        subnets: [
+          ec2.Subnet.fromSubnetId(this, "subnet1p", "subnet-0b12559a29fa04790"),
+          ec2.Subnet.fromSubnetId(this, "subnet2p", "subnet-043f5252ea218d1da"),
+          ec2.Subnet.fromSubnetId(this, "subnet3p", "subnet-0ebc8ff15884a84b9"),
+          ec2.Subnet.fromSubnetId(this, "subnet4p", "subnet-0f2c9953441f05d8c"),
+          ec2.Subnet.fromSubnetId(this, "subnet5p", "subnet-08a1a7e857a96af6a"),
+          ec2.Subnet.fromSubnetId(this, "subnet6p", "subnet-00aadc11d067e33ac"),
+        ],
+      },
       environment: dbEnv,
     });
 
@@ -105,14 +130,16 @@ export class BackendStack extends cdk.Stack {
       code: lambda.Code.fromAsset("../backend"),
       vpc,
       securityGroups: [lambdaSG],
-      vpcSubnets: { subnets: [
-        ec2.Subnet.fromSubnetId(this, "subnet1n", "subnet-0b12559a29fa04790"),
-        ec2.Subnet.fromSubnetId(this, "subnet2n", "subnet-043f5252ea218d1da"),
-        ec2.Subnet.fromSubnetId(this, "subnet3n", "subnet-0ebc8ff15884a84b9"),
-        ec2.Subnet.fromSubnetId(this, "subnet4n", "subnet-0f2c9953441f05d8c"),
-        ec2.Subnet.fromSubnetId(this, "subnet5n", "subnet-08a1a7e857a96af6a"),
-        ec2.Subnet.fromSubnetId(this, "subnet6n", "subnet-00aadc11d067e33ac"),
-      ]},
+      vpcSubnets: {
+        subnets: [
+          ec2.Subnet.fromSubnetId(this, "subnet1n", "subnet-0b12559a29fa04790"),
+          ec2.Subnet.fromSubnetId(this, "subnet2n", "subnet-043f5252ea218d1da"),
+          ec2.Subnet.fromSubnetId(this, "subnet3n", "subnet-0ebc8ff15884a84b9"),
+          ec2.Subnet.fromSubnetId(this, "subnet4n", "subnet-0f2c9953441f05d8c"),
+          ec2.Subnet.fromSubnetId(this, "subnet5n", "subnet-08a1a7e857a96af6a"),
+          ec2.Subnet.fromSubnetId(this, "subnet6n", "subnet-00aadc11d067e33ac"),
+        ],
+      },
       environment: dbEnv,
     });
 
@@ -148,7 +175,7 @@ export class BackendStack extends cdk.Stack {
     const results = surveyId.addResource("results");
     results.addMethod("GET", new apigateway.LambdaIntegration(surveysLambda));
 
-    // /api/projects endpoints (new)
+    // /api/projects endpoints
     const projects = apiRoot.addResource("projects");
     projects.addMethod("POST", new apigateway.LambdaIntegration(projectsLambda)); // create
     projects.addMethod("GET", new apigateway.LambdaIntegration(projectsLambda)); // list
@@ -159,7 +186,7 @@ export class BackendStack extends cdk.Stack {
     const projectSurveys = projectId.addResource("surveys");
     projectSurveys.addMethod("GET", new apigateway.LambdaIntegration(surveysLambda)); // list surveys for a project
 
-    // /api/personas endpoints (new)
+    // /api/personas endpoints
     const personas = apiRoot.addResource("personas");
     personas.addMethod("GET", new apigateway.LambdaIntegration(personasLambda)); // list
     const personaId = personas.addResource("{personaId}");
@@ -197,21 +224,24 @@ export class BackendStack extends cdk.Stack {
         }],
       });
     });
-    // After defining your testDbLambda
+
+    // Test DB Lambda
     const testDbLambda = new lambda.Function(this, "TestDbLambda", {
       runtime: lambda.Runtime.NODEJS_18_X,
       handler: "dist/test-db.handler",
       code: lambda.Code.fromAsset("../backend"),
       vpc,
       securityGroups: [lambdaSG],
-      vpcSubnets: { subnets: [
-        ec2.Subnet.fromSubnetId(this, "subnet1test", "subnet-0b12559a29fa04790"),
-        ec2.Subnet.fromSubnetId(this, "subnet2test", "subnet-043f5252ea218d1da"),
-        ec2.Subnet.fromSubnetId(this, "subnet3test", "subnet-0ebc8ff15884a84b9"),
-        ec2.Subnet.fromSubnetId(this, "subnet4test", "subnet-0f2c9953441f05d8c"),
-        ec2.Subnet.fromSubnetId(this, "subnet5test", "subnet-08a1a7e857a96af6a"),
-        ec2.Subnet.fromSubnetId(this, "subnet6test", "subnet-00aadc11d067e33ac"),
-      ]},
+      vpcSubnets: {
+        subnets: [
+          ec2.Subnet.fromSubnetId(this, "subnet1test", "subnet-0b12559a29fa04790"),
+          ec2.Subnet.fromSubnetId(this, "subnet2test", "subnet-043f5252ea218d1da"),
+          ec2.Subnet.fromSubnetId(this, "subnet3test", "subnet-0ebc8ff15884a84b9"),
+          ec2.Subnet.fromSubnetId(this, "subnet4test", "subnet-0f2c9953441f05d8c"),
+          ec2.Subnet.fromSubnetId(this, "subnet5test", "subnet-08a1a7e857a96af6a"),
+          ec2.Subnet.fromSubnetId(this, "subnet6test", "subnet-00aadc11d067e33ac"),
+        ],
+      },
       environment: dbEnv,
     });
 
