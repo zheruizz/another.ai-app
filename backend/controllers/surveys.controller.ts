@@ -76,7 +76,7 @@ export async function runSurvey(
 ): Promise<APIGatewayProxyResult> {
   const match = event.rawPath.match(/\/api\/surveys\/(\d+)\/run$/);
   const surveyId = match ? Number(match[1]) : undefined;
-  const { persona_ids } = JSON.parse(event.body || "{}");
+  const { persona_ids, sample_size } = JSON.parse(event.body || "{}");
   if (typeof surveyId !== "number") {
     return {
       statusCode: 400,
@@ -85,7 +85,7 @@ export async function runSurvey(
     };
   }
   try {
-    const result = await SurveyService.runSurvey(surveyId, persona_ids);
+    const result = await SurveyService.runSurvey(surveyId, persona_ids, sample_size);
     return {
       statusCode: 200,
       headers: { "Content-Type": "application/json" },

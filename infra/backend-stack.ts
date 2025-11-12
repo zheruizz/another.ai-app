@@ -98,6 +98,8 @@ export class BackendStack extends cdk.Stack {
         ENABLE_RAW_OUTPUT: "false",
         RUN_COST_CAP_USD: "4",
       },
+      timeout: cdk.Duration.seconds(300),
+      memorySize: 1024,
     });
 
     // Allow surveysLambda to read the OpenAI secret

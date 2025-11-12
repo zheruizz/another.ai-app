@@ -23,6 +23,7 @@ infrastructure/.aws-sam/
 
 # Ignore CDK output
 infra/cdk.out/
+infra/package-lock.json
 
 # Logs
 logs/
