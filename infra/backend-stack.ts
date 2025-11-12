@@ -73,7 +73,7 @@ export class BackendStack extends cdk.Stack {
     // Lambda for all survey endpoints (LLM used here)
     const surveysLambda = new lambda.Function(this, "SurveysLambda", {
       runtime: lambda.Runtime.NODEJS_18_X,
-      handler: "dist/routes/surveys.routes.handler",
+      handler: "dist/routes/surveys/routes.handler",
       code: lambda.Code.fromAsset("../backend"),
       vpc,
       securityGroups: [lambdaSG],
@@ -108,7 +108,7 @@ export class BackendStack extends cdk.Stack {
     // Lambda for projects endpoints
     const projectsLambda = new lambda.Function(this, "ProjectsLambda", {
       runtime: lambda.Runtime.NODEJS_18_X,
-      handler: "dist/routes/projects.routes.handler",
+      handler: "dist/routes/projects/routes.handler",
       code: lambda.Code.fromAsset("../backend"),
       vpc,
       securityGroups: [lambdaSG],
@@ -128,7 +128,7 @@ export class BackendStack extends cdk.Stack {
     // Lambda for personas endpoints
     const personasLambda = new lambda.Function(this, "PersonasLambda", {
       runtime: lambda.Runtime.NODEJS_18_X,
-      handler: "dist/routes/personas.routes.handler",
+      handler: "dist/routes/personas/routes.handler",
       code: lambda.Code.fromAsset("../backend"),
       vpc,
       securityGroups: [lambdaSG],
