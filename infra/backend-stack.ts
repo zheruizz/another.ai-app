@@ -4,7 +4,7 @@ import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as apigateway from "aws-cdk-lib/aws-apigateway";
 import * as ec2 from "aws-cdk-lib/aws-ec2";
 import * as s3 from "aws-cdk-lib/aws-s3";
-import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager"; // NEW
+import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 
 export class BackendStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -13,7 +13,7 @@ export class BackendStack extends cdk.Stack {
     // VPC, Subnets, Security Group for Lambda <-> RDS
     const vpc = ec2.Vpc.fromVpcAttributes(this, "AppVPC", {
       vpcId: "vpc-004303f540511f4e6",
-      availabilityZones: ["us-east-1d"], // You can add more if needed
+      availabilityZones: ["us-east-1d"],
       privateSubnetIds: [
         "subnet-0b12559a29fa04790",
         "subnet-043f5252ea218d1da",
@@ -37,21 +37,21 @@ export class BackendStack extends cdk.Stack {
       DB_HOST: "another-ai-db.c6bec2a8cygx.us-east-1.rds.amazonaws.com",
       DB_PORT: "5432",
       DB_USER: "master",
-      DB_PASSWORD: "OniiohnVY^8134#$45naf^3e", // TODO: For production, move to Secrets Manager.
+      DB_PASSWORD: "OniiohnVY^8134#$45naf^3e",
       DB_NAME: "postgres",
       DB_SSL: "true",
     };
 
     // OpenAI secret + env config
-    const openAiSecretName = "anotherai/openai-api"; // ensure this matches your Secrets Manager secret name
-    const openAiRegion = "us-east-1";                // region where the secret is stored
+    const openAiSecretName = "anotherai/openai-api";
+    const openAiRegion = "us-east-1";
     const openAiSecret = secretsmanager.Secret.fromSecretNameV2(this, "OpenAISecret", openAiSecretName);
 
     // Lambda for /hello and /upload
     const helloLambda = new lambda.Function(this, "HelloLambda", {
       runtime: lambda.Runtime.NODEJS_18_X,
       handler: "dist/hello.handler",
-      code: lambda.Code.fromAsset("../backend"),
+      code: lambda.Code.fromAsset("../backend/lambda-package"),
       vpc,
       securityGroups: [lambdaSG],
       vpcSubnets: {
@@ -74,7 +74,7 @@ export class BackendStack extends cdk.Stack {
     const surveysLambda = new lambda.Function(this, "SurveysLambda", {
       runtime: lambda.Runtime.NODEJS_18_X,
       handler: "dist/routes/surveys/routes.handler",
-      code: lambda.Code.fromAsset("../backend"),
+      code: lambda.Code.fromAsset("../backend/lambda-package"),
       vpc,
       securityGroups: [lambdaSG],
       vpcSubnets: {
@@ -89,7 +89,6 @@ export class BackendStack extends cdk.Stack {
       },
       environment: {
         ...dbEnv,
-        // LLM-related environment variables
         OPENAI_SECRET_NAME: openAiSecretName,
         OPENAI_REGION: openAiRegion,
         MODEL_NAME: "gpt-4o-mini",
@@ -102,14 +101,13 @@ export class BackendStack extends cdk.Stack {
       memorySize: 1024,
     });
 
-    // Allow surveysLambda to read the OpenAI secret
     openAiSecret.grantRead(surveysLambda);
 
     // Lambda for projects endpoints
     const projectsLambda = new lambda.Function(this, "ProjectsLambda", {
       runtime: lambda.Runtime.NODEJS_18_X,
       handler: "dist/routes/projects/routes.handler",
-      code: lambda.Code.fromAsset("../backend"),
+      code: lambda.Code.fromAsset("../backend/lambda-package"),
       vpc,
       securityGroups: [lambdaSG],
       vpcSubnets: {
@@ -129,7 +127,7 @@ export class BackendStack extends cdk.Stack {
     const personasLambda = new lambda.Function(this, "PersonasLambda", {
       runtime: lambda.Runtime.NODEJS_18_X,
       handler: "dist/routes/personas/routes.handler",
-      code: lambda.Code.fromAsset("../backend"),
+      code: lambda.Code.fromAsset("../backend/lambda-package"),
       vpc,
       securityGroups: [lambdaSG],
       vpcSubnets: {
@@ -155,12 +153,12 @@ export class BackendStack extends cdk.Stack {
     // /hello endpoint
     const hello = api.root.addResource("hello");
     hello.addMethod("GET", new apigateway.LambdaIntegration(helloLambda));
-    hello.addMethod("OPTIONS", new apigateway.MockIntegration({ /* ...CORS config... */ }));
+    hello.addMethod("OPTIONS", new apigateway.MockIntegration({}));
 
     // /upload endpoint
     const upload = api.root.addResource("upload");
     upload.addMethod("POST", new apigateway.LambdaIntegration(helloLambda));
-    upload.addMethod("OPTIONS", new apigateway.MockIntegration({ /* ...CORS config... */ }));
+    upload.addMethod("OPTIONS", new apigateway.MockIntegration({}));
 
     // /api root
     const apiRoot = api.root.addResource("api");
@@ -179,22 +177,21 @@ export class BackendStack extends cdk.Stack {
 
     // /api/projects endpoints
     const projects = apiRoot.addResource("projects");
-    projects.addMethod("POST", new apigateway.LambdaIntegration(projectsLambda)); // create
-    projects.addMethod("GET", new apigateway.LambdaIntegration(projectsLambda)); // list
+    projects.addMethod("POST", new apigateway.LambdaIntegration(projectsLambda));
+    projects.addMethod("GET", new apigateway.LambdaIntegration(projectsLambda));
     const projectId = projects.addResource("{projectId}");
-    projectId.addMethod("GET", new apigateway.LambdaIntegration(projectsLambda)); // get
-    projectId.addMethod("DELETE", new apigateway.LambdaIntegration(projectsLambda)); // delete
-    // /api/projects/{projectId}/surveys
+    projectId.addMethod("GET", new apigateway.LambdaIntegration(projectsLambda));
+    projectId.addMethod("DELETE", new apigateway.LambdaIntegration(projectsLambda));
     const projectSurveys = projectId.addResource("surveys");
-    projectSurveys.addMethod("GET", new apigateway.LambdaIntegration(surveysLambda)); // list surveys for a project
+    projectSurveys.addMethod("GET", new apigateway.LambdaIntegration(surveysLambda));
 
     // /api/personas endpoints
     const personas = apiRoot.addResource("personas");
-    personas.addMethod("GET", new apigateway.LambdaIntegration(personasLambda)); // list
+    personas.addMethod("GET", new apigateway.LambdaIntegration(personasLambda));
     const personaId = personas.addResource("{personaId}");
-    personaId.addMethod("GET", new apigateway.LambdaIntegration(personasLambda)); // get details
+    personaId.addMethod("GET", new apigateway.LambdaIntegration(personasLambda));
 
-    // Add CORS OPTIONS for new endpoints as before
+    // Add CORS OPTIONS for new endpoints
     [
       surveys, surveyId, questions, run, results, projectSurveys,
       projects, projectId, personas, personaId
@@ -208,7 +205,7 @@ export class BackendStack extends cdk.Stack {
             "method.response.header.Access-Control-Allow-Methods": "'GET,POST,DELETE,OPTIONS'"
           },
           responseTemplates: {
-            "application/json": "npm install --save-dev @types/pg{\"status\": \"OK\"}"
+            "application/json": "{\"status\": \"OK\"}"
           }
         }],
         passthroughBehavior: apigateway.PassthroughBehavior.NEVER,
@@ -231,7 +228,7 @@ export class BackendStack extends cdk.Stack {
     const testDbLambda = new lambda.Function(this, "TestDbLambda", {
       runtime: lambda.Runtime.NODEJS_18_X,
       handler: "dist/test-db.handler",
-      code: lambda.Code.fromAsset("../backend"),
+      code: lambda.Code.fromAsset("../backend/lambda-package"),
       vpc,
       securityGroups: [lambdaSG],
       vpcSubnets: {
