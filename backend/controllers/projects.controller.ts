@@ -42,10 +42,14 @@ export async function getProjects(
 }
 
 export async function getProject(
-  event: APIGatewayProxyEventV2
+  event: any // Support both v1 and v2 events
 ): Promise<APIGatewayProxyResult> {
-  const match = event.rawPath.match(/\/api\/projects\/(\d+)$/);
+  // Support both API Gateway v1 and v2 event formats
+  const path = event.rawPath || event.path;
+  
+  const match = path?.match(/\/api\/projects\/(\d+)$/);
   const projectId = match ? Number(match[1]) : undefined;
+  
   if (typeof projectId !== "number") {
     return {
       statusCode: 400,
@@ -53,27 +57,56 @@ export async function getProject(
       body: JSON.stringify({ error: "Invalid project ID" }),
     };
   }
+  
   try {
     const project = await ProjectService.getProject(projectId);
+    
+    if (!project) {
+      return {
+        statusCode: 404,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ error: "Project not found" }),
+      };
+    }
+    
     return {
       statusCode: 200,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(project),
     };
-  } catch (error) {
+  } catch (error: any) {
+    // Check if it's a "not found" error
+    if (error.message && error.message.includes("not found")) {
+      return {
+        statusCode: 404,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          error: "Project not found",
+          message: error.message
+        }),
+      };
+    }
+    
     return {
       statusCode: 500,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ error: "Failed to fetch project" }),
+      body: JSON.stringify({ 
+        error: "Failed to fetch project",
+        message: error.message || String(error)
+      }),
     };
   }
 }
 
 export async function deleteProject(
-  event: APIGatewayProxyEventV2
+  event: any // Support both v1 and v2 events
 ): Promise<APIGatewayProxyResult> {
-  const match = event.rawPath.match(/\/api\/projects\/(\d+)$/);
+  // Support both API Gateway v1 and v2 event formats
+  const path = event.rawPath || event.path;
+  
+  const match = path?.match(/\/api\/projects\/(\d+)$/);
   const projectId = match ? Number(match[1]) : undefined;
+  
   if (typeof projectId !== "number") {
     return {
       statusCode: 400,
@@ -81,6 +114,7 @@ export async function deleteProject(
       body: JSON.stringify({ error: "Invalid project ID" }),
     };
   }
+  
   try {
     await ProjectService.deleteProject(projectId);
     return {
@@ -88,11 +122,14 @@ export async function deleteProject(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message: "Project deleted successfully" }),
     };
-  } catch (error) {
+  } catch (error: any) {
     return {
       statusCode: 500,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ error: "Failed to delete project" }),
+      body: JSON.stringify({ 
+        error: "Failed to delete project",
+        message: error.message || String(error)
+      }),
     };
   }
 }

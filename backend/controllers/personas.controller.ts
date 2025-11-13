@@ -21,10 +21,14 @@ export async function getPersonas(
 }
 
 export async function getPersona(
-  event: APIGatewayProxyEventV2
+  event: any // Support both v1 and v2 events
 ): Promise<APIGatewayProxyResult> {
-  const match = event.rawPath.match(/\/api\/personas\/(\d+)$/);
+  // Support both API Gateway v1 and v2 event formats
+  const path = event.rawPath || event.path;
+  
+  const match = path?.match(/\/api\/personas\/(\d+)$/);
   const personaId = match ? Number(match[1]) : undefined;
+  
   if (typeof personaId !== "number") {
     return {
       statusCode: 400,
@@ -32,18 +36,43 @@ export async function getPersona(
       body: JSON.stringify({ error: "Invalid persona ID" }),
     };
   }
+  
   try {
     const persona = await PersonaService.getPersona(personaId);
+    
+    if (!persona) {
+      return {
+        statusCode: 404,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ error: "Persona not found" }),
+      };
+    }
+    
     return {
       statusCode: 200,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(persona),
     };
-  } catch (error) {
+  } catch (error: any) {
+    // Check if it's a "not found" error
+    if (error.message && error.message.includes("not found")) {
+      return {
+        statusCode: 404,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          error: "Persona not found",
+          message: error.message
+        }),
+      };
+    }
+    
     return {
       statusCode: 500,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ error: "Failed to fetch persona" }),
+      body: JSON.stringify({ 
+        error: "Failed to fetch persona",
+        message: error.message || String(error)
+      }),
     };
   }
 }
