@@ -96,6 +96,7 @@ export class BackendStack extends cdk.Stack {
         MAX_SAMPLE_SIZE: "50",
         ENABLE_RAW_OUTPUT: "false",
         RUN_COST_CAP_USD: "4",
+        ENABLE_ERROR_STACK: "false",
       },
       timeout: cdk.Duration.seconds(300),
       memorySize: 1024,
@@ -246,5 +247,25 @@ export class BackendStack extends cdk.Stack {
 
     const testDb = api.root.addResource("test-db");
     testDb.addMethod("GET", new apigateway.LambdaIntegration(testDbLambda));
+
+    // Test OpenAI Lambda - NO VPC needed (needs internet access for OpenAI API)
+    const testOpenAiLambda = new lambda.Function(this, "TestOpenAiLambda", {
+      runtime: lambda.Runtime.NODEJS_18_X,
+      handler: "dist/test-openai.handler",
+      code: lambda.Code.fromAsset("../backend/lambda-package"),
+      // Removed VPC config to allow internet access for OpenAI API
+      environment: {
+        OPENAI_SECRET_NAME: openAiSecretName,
+        OPENAI_REGION: openAiRegion,
+        MODEL_NAME: "gpt-4o-mini",
+      },
+      timeout: cdk.Duration.seconds(60),
+      memorySize: 512,
+    });
+
+    openAiSecret.grantRead(testOpenAiLambda);
+
+    const testOpenAi = api.root.addResource("test-openai");
+    testOpenAi.addMethod("GET", new apigateway.LambdaIntegration(testOpenAiLambda));
   }
 }
