@@ -4,7 +4,8 @@
   "main": "hello.ts",
   "scripts": {
     "build": "tsc",
-    "test": "npx jest --config jest.config.js"
+    "test": "npx jest --config jest.config.js",
+    "migrate": "ts-node scripts/run-migration.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.500.0",
@@ -22,6 +23,7 @@
     "@types/uuid": "^9.0.8",
     "jest": "^30.2.0",
     "ts-jest": "^29.4.5",
-    "typescript": "^5.0.0"
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
   }
 }
