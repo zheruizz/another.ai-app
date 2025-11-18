@@ -151,7 +151,7 @@ export class BackendStack extends cdk.Stack {
       code: lambda.Code.fromAsset("../backend/lambda-package"),
       // No VPC needed initially (will need internet access for Playwright later)
       environment: {
-        // Add environment variables as needed
+        ...dbEnv, // Add database connection for agent-tests
       },
       timeout: cdk.Duration.seconds(300),
       memorySize: 1024,

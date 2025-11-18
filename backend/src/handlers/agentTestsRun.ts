@@ -4,39 +4,83 @@ import {
   RunAgentTestsResponse,
   AgentTestTask,
 } from '../types/agentTests';
+import * as AgentTestsService from '../services/agentTests.service';
 
 export const runTestsHandler = async (event: any): Promise<APIGatewayProxyResult> => {
   const body: RunAgentTestsRequest = JSON.parse(event.body ?? '{}');
 
-  if (!body.runId || !body.url || !body.tasks?.length) {
+  if (!body.runId || !body.url) {
     return {
       statusCode: 400,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ error: 'Missing runId, url, or tasks' }),
+      body: JSON.stringify({ error: 'Missing runId or url' }),
     };
   }
 
-  const tasks: AgentTestTask[] = body.tasks.map((t, idx) => ({
-    ...t,
-    success: idx !== 1, // arbitrarily fail the second one
-    errorReason: idx === 1 ? 'Stub: failed for demo purposes.' : null,
-    videoUrl: null,
-    details: { steps: ['Stubbed runner – no real browser yet.'] },
-  }));
+  try {
+    // Load tasks from database (ignore body.tasks for now)
+    let tasks: AgentTestTask[] = await AgentTestsService.getAgentTestTasksByRunId(body.runId);
 
-  const successCount = tasks.filter(t => t.success).length;
-  const overallScore = Math.round((successCount / tasks.length) * 100);
+    if (tasks.length === 0) {
+      return {
+        statusCode: 404,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'No tasks found for this runId' }),
+      };
+    }
 
-  const response: RunAgentTestsResponse = {
-    runId: body.runId,
-    overallScore,
-    tasks,
-  };
+    // Stub: apply mock success/failure (still no real Playwright yet)
+    const updatedTasks: AgentTestTask[] = await Promise.all(
+      tasks.map(async (t, idx) => {
+        const success = idx !== 1; // arbitrarily fail the second one
+        const errorReason = idx === 1 ? 'Stub: failed for demo purposes.' : null;
+        const details = { steps: ['Stubbed runner – no real browser yet.'] };
 
-  return {
-    statusCode: 200,
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(response),
-  };
+        // Update task in database
+        try {
+          await AgentTestsService.updateAgentTestTask(t.id, {
+            success,
+            errorReason,
+            videoUrl: null,
+            details,
+          });
+        } catch (err) {
+          console.error(`Failed to update task ${t.id}:`, err);
+        }
+
+        return {
+          ...t,
+          success,
+          errorReason,
+          videoUrl: null,
+          details,
+        };
+      })
+    );
+
+    const successCount = updatedTasks.filter(t => t.success).length;
+    const overallScore = Math.round((successCount / updatedTasks.length) * 100);
+
+    const response: RunAgentTestsResponse = {
+      runId: body.runId,
+      overallScore,
+      tasks: updatedTasks,
+    };
+
+    return {
+      statusCode: 200,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(response),
+    };
+  } catch (error: any) {
+    return {
+      statusCode: 500,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        error: 'Failed to run agent tests',
+        message: error.message || String(error),
+      }),
+    };
+  }
 };
 
