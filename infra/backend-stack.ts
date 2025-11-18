@@ -144,6 +144,19 @@ export class BackendStack extends cdk.Stack {
       environment: dbEnv,
     });
 
+    // Lambda for agent-tests endpoints
+    const agentTestsLambda = new lambda.Function(this, "AgentTestsLambda", {
+      runtime: lambda.Runtime.NODEJS_18_X,
+      handler: "dist/routes/agent-tests/routes.handler",
+      code: lambda.Code.fromAsset("../backend/lambda-package"),
+      // No VPC needed initially (will need internet access for Playwright later)
+      environment: {
+        // Add environment variables as needed
+      },
+      timeout: cdk.Duration.seconds(300),
+      memorySize: 1024,
+    });
+
     demoBucket.grantReadWrite(helloLambda);
 
     // API Gateway
@@ -192,10 +205,18 @@ export class BackendStack extends cdk.Stack {
     const personaId = personas.addResource("{personaId}");
     personaId.addMethod("GET", new apigateway.LambdaIntegration(personasLambda));
 
+    // /api/agent-tests endpoints
+    const agentTests = apiRoot.addResource("agent-tests");
+    const agentTestsSuggest = agentTests.addResource("suggest-tasks");
+    agentTestsSuggest.addMethod("POST", new apigateway.LambdaIntegration(agentTestsLambda));
+    const agentTestsRun = agentTests.addResource("run");
+    agentTestsRun.addMethod("POST", new apigateway.LambdaIntegration(agentTestsLambda));
+
     // Add CORS OPTIONS for new endpoints
     [
       surveys, surveyId, questions, run, results, projectSurveys,
-      projects, projectId, personas, personaId
+      projects, projectId, personas, personaId,
+      agentTests, agentTestsSuggest, agentTestsRun
     ].forEach(resource => {
       resource.addMethod("OPTIONS", new apigateway.MockIntegration({
         integrationResponses: [{
