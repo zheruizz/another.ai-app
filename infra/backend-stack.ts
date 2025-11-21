@@ -53,9 +53,9 @@ export class BackendStack extends cdk.Stack {
 
     const openAiRegionParam = new cdk.CfnParameter(this, "OpenAISecretRegion", {
       type: "String",
-      default: this.region || "us-east-1",
+      default: "us-east-1", // <-- literal string only
       description: "Region where the OpenAI secret is stored",
-    });
+    });    
 
     //
     // VPC and networking - CREATE resources (portable)
