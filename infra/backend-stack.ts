@@ -70,80 +70,6 @@ export class BackendStack extends cdk.Stack {
       },
     });
 
-    // Lambda for all survey endpoints (LLM used here)
-    const surveysLambda = new lambda.Function(this, "SurveysLambda", {
-      runtime: lambda.Runtime.NODEJS_18_X,
-      handler: "dist/routes/surveys/routes.handler",
-      code: lambda.Code.fromAsset("../backend/lambda-package"),
-      vpc,
-      securityGroups: [lambdaSG],
-      vpcSubnets: {
-        subnets: [
-          ec2.Subnet.fromSubnetId(this, "subnet1s", "subnet-0b12559a29fa04790"),
-          ec2.Subnet.fromSubnetId(this, "subnet2s", "subnet-043f5252ea218d1da"),
-          ec2.Subnet.fromSubnetId(this, "subnet3s", "subnet-0ebc8ff15884a84b9"),
-          ec2.Subnet.fromSubnetId(this, "subnet4s", "subnet-0f2c9953441f05d8c"),
-          ec2.Subnet.fromSubnetId(this, "subnet5s", "subnet-08a1a7e857a96af6a"),
-          ec2.Subnet.fromSubnetId(this, "subnet6s", "subnet-00aadc11d067e33ac"),
-        ],
-      },
-      environment: {
-        ...dbEnv,
-        OPENAI_SECRET_NAME: openAiSecretName,
-        OPENAI_REGION: openAiRegion,
-        MODEL_NAME: "gpt-4o-mini",
-        DEFAULT_SAMPLE_SIZE: "20",
-        MAX_SAMPLE_SIZE: "50",
-        ENABLE_RAW_OUTPUT: "false",
-        RUN_COST_CAP_USD: "4",
-        ENABLE_ERROR_STACK: "false",
-      },
-      timeout: cdk.Duration.seconds(300),
-      memorySize: 1024,
-    });
-
-    openAiSecret.grantRead(surveysLambda);
-
-    // Lambda for projects endpoints
-    const projectsLambda = new lambda.Function(this, "ProjectsLambda", {
-      runtime: lambda.Runtime.NODEJS_18_X,
-      handler: "dist/routes/projects/routes.handler",
-      code: lambda.Code.fromAsset("../backend/lambda-package"),
-      vpc,
-      securityGroups: [lambdaSG],
-      vpcSubnets: {
-        subnets: [
-          ec2.Subnet.fromSubnetId(this, "subnet1p", "subnet-0b12559a29fa04790"),
-          ec2.Subnet.fromSubnetId(this, "subnet2p", "subnet-043f5252ea218d1da"),
-          ec2.Subnet.fromSubnetId(this, "subnet3p", "subnet-0ebc8ff15884a84b9"),
-          ec2.Subnet.fromSubnetId(this, "subnet4p", "subnet-0f2c9953441f05d8c"),
-          ec2.Subnet.fromSubnetId(this, "subnet5p", "subnet-08a1a7e857a96af6a"),
-          ec2.Subnet.fromSubnetId(this, "subnet6p", "subnet-00aadc11d067e33ac"),
-        ],
-      },
-      environment: dbEnv,
-    });
-
-    // Lambda for personas endpoints
-    const personasLambda = new lambda.Function(this, "PersonasLambda", {
-      runtime: lambda.Runtime.NODEJS_18_X,
-      handler: "dist/routes/personas/routes.handler",
-      code: lambda.Code.fromAsset("../backend/lambda-package"),
-      vpc,
-      securityGroups: [lambdaSG],
-      vpcSubnets: {
-        subnets: [
-          ec2.Subnet.fromSubnetId(this, "subnet1n", "subnet-0b12559a29fa04790"),
-          ec2.Subnet.fromSubnetId(this, "subnet2n", "subnet-043f5252ea218d1da"),
-          ec2.Subnet.fromSubnetId(this, "subnet3n", "subnet-0ebc8ff15884a84b9"),
-          ec2.Subnet.fromSubnetId(this, "subnet4n", "subnet-0f2c9953441f05d8c"),
-          ec2.Subnet.fromSubnetId(this, "subnet5n", "subnet-08a1a7e857a96af6a"),
-          ec2.Subnet.fromSubnetId(this, "subnet6n", "subnet-00aadc11d067e33ac"),
-        ],
-      },
-      environment: dbEnv,
-    });
-
     // Lambda for agent-tests endpoints
     const agentTestsLambda = new lambda.Function(this, "AgentTestsLambda", {
       runtime: lambda.Runtime.NODEJS_18_X,
@@ -177,34 +103,6 @@ export class BackendStack extends cdk.Stack {
     // /api root
     const apiRoot = api.root.addResource("api");
 
-    // ----- SURVEY ENDPOINTS -----
-    const surveys = apiRoot.addResource("surveys");
-    surveys.addMethod("POST", new apigateway.LambdaIntegration(surveysLambda));
-    const surveyId = surveys.addResource("{surveyId}");
-    surveyId.addMethod("DELETE", new apigateway.LambdaIntegration(surveysLambda));
-    const questions = surveyId.addResource("questions");
-    questions.addMethod("POST", new apigateway.LambdaIntegration(surveysLambda));
-    const run = surveyId.addResource("run");
-    run.addMethod("POST", new apigateway.LambdaIntegration(surveysLambda));
-    const results = surveyId.addResource("results");
-    results.addMethod("GET", new apigateway.LambdaIntegration(surveysLambda));
-
-    // /api/projects endpoints
-    const projects = apiRoot.addResource("projects");
-    projects.addMethod("POST", new apigateway.LambdaIntegration(projectsLambda));
-    projects.addMethod("GET", new apigateway.LambdaIntegration(projectsLambda));
-    const projectId = projects.addResource("{projectId}");
-    projectId.addMethod("GET", new apigateway.LambdaIntegration(projectsLambda));
-    projectId.addMethod("DELETE", new apigateway.LambdaIntegration(projectsLambda));
-    const projectSurveys = projectId.addResource("surveys");
-    projectSurveys.addMethod("GET", new apigateway.LambdaIntegration(surveysLambda));
-
-    // /api/personas endpoints
-    const personas = apiRoot.addResource("personas");
-    personas.addMethod("GET", new apigateway.LambdaIntegration(personasLambda));
-    const personaId = personas.addResource("{personaId}");
-    personaId.addMethod("GET", new apigateway.LambdaIntegration(personasLambda));
-
     // /api/agent-tests endpoints
     const agentTests = apiRoot.addResource("agent-tests");
     const agentTestsSuggest = agentTests.addResource("suggest-tasks");
@@ -212,10 +110,8 @@ export class BackendStack extends cdk.Stack {
     const agentTestsRun = agentTests.addResource("run");
     agentTestsRun.addMethod("POST", new apigateway.LambdaIntegration(agentTestsLambda));
 
-    // Add CORS OPTIONS for new endpoints
+    // Add CORS OPTIONS for agent-tests endpoints
     [
-      surveys, surveyId, questions, run, results, projectSurveys,
-      projects, projectId, personas, personaId,
       agentTests, agentTestsSuggest, agentTestsRun
     ].forEach(resource => {
       resource.addMethod("OPTIONS", new apigateway.MockIntegration({
