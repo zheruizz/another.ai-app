@@ -148,46 +148,19 @@ export class BackendStack extends cdk.Stack {
       BUCKET_NAME: demoBucket.bucketName,
     });
 
-    //
-    // Surveys Lambda (LLM used here)
-    //
-    const surveysLambda = createVpcLambda("SurveysLambda", "dist/routes/surveys/routes.handler", {
-      ...dbEnv,
-      OPENAI_SECRET_NAME: openAiSecretName,
-      OPENAI_REGION: openAiRegion,
-      MODEL_NAME: "gpt-4o-mini",
-      DEFAULT_SAMPLE_SIZE: "20",
-      MAX_SAMPLE_SIZE: "50",
-      ENABLE_RAW_OUTPUT: "false",
-      RUN_COST_CAP_USD: "4",
-      ENABLE_ERROR_STACK: "false",
+    // Lambda for agent-tests endpoints
+    const agentTestsLambda = new lambda.Function(this, "AgentTestsLambda", {
+      runtime: lambda.Runtime.NODEJS_18_X,
+      handler: "dist/routes/agent-tests/routes.handler",
+      code: lambda.Code.fromAsset("../backend/lambda-package"),
+      // No VPC needed initially (will need internet access for Playwright later)
+      environment: {
+        ...dbEnv, // Add database connection for agent-tests
+      },
+      timeout: cdk.Duration.seconds(300),
+      memorySize: 1024,
     });
 
-    // Grant surveys Lambda permission to read the OpenAI secret (no-op if secret not present)
-    try {
-      openAiSecret.grantRead(surveysLambda);
-    } catch {
-      // fromSecretNameV2 does not fail synth if secret absent, but grantRead may throw in some contexts.
-      // Swallowing exception is OK here to keep portability; deployer must ensure secret exists for runtime.
-    }
-
-    //
-    // Projects Lambda
-    //
-    const projectsLambda = createVpcLambda("ProjectsLambda", "dist/routes/projects/routes.handler", {
-      ...dbEnv,
-    });
-
-    //
-    // Personas Lambda
-    //
-    const personasLambda = createVpcLambda("PersonasLambda", "dist/routes/personas/routes.handler", {
-      ...dbEnv,
-    });
-
-    //
-    // Grant the hello lambda access to demo bucket
-    //
     demoBucket.grantReadWrite(helloLambda);
 
     //
@@ -210,67 +183,24 @@ export class BackendStack extends cdk.Stack {
     // /api root
     const apiRoot = api.root.addResource("api");
 
-    // ----- SURVEY ENDPOINTS -----
-    const surveys = apiRoot.addResource("surveys");
-    surveys.addMethod("POST", new apigateway.LambdaIntegration(surveysLambda));
-    const surveyId = surveys.addResource("{surveyId}");
-    surveyId.addMethod("DELETE", new apigateway.LambdaIntegration(surveysLambda));
-    const questions = surveyId.addResource("questions");
-    questions.addMethod("POST", new apigateway.LambdaIntegration(surveysLambda));
-    const run = surveyId.addResource("run");
-    run.addMethod("POST", new apigateway.LambdaIntegration(surveysLambda));
-    const results = surveyId.addResource("results");
-    results.addMethod("GET", new apigateway.LambdaIntegration(surveysLambda));
+    // /api/agent-tests endpoints
+    const agentTests = apiRoot.addResource("agent-tests");
+    const agentTestsSuggest = agentTests.addResource("suggest-tasks");
+    agentTestsSuggest.addMethod("POST", new apigateway.LambdaIntegration(agentTestsLambda));
+    const agentTestsRun = agentTests.addResource("run");
+    agentTestsRun.addMethod("POST", new apigateway.LambdaIntegration(agentTestsLambda));
 
-    // /api/projects endpoints
-    const projects = apiRoot.addResource("projects");
-    projects.addMethod("POST", new apigateway.LambdaIntegration(projectsLambda));
-    projects.addMethod("GET", new apigateway.LambdaIntegration(projectsLambda));
-    const projectId = projects.addResource("{projectId}");
-    projectId.addMethod("GET", new apigateway.LambdaIntegration(projectsLambda));
-    projectId.addMethod("DELETE", new apigateway.LambdaIntegration(projectsLambda));
-    const projectSurveys = projectId.addResource("surveys");
-    projectSurveys.addMethod("GET", new apigateway.LambdaIntegration(surveysLambda));
-
-    // /api/personas endpoints
-    const personas = apiRoot.addResource("personas");
-    personas.addMethod("GET", new apigateway.LambdaIntegration(personasLambda));
-    const personaId = personas.addResource("{personaId}");
-    personaId.addMethod("GET", new apigateway.LambdaIntegration(personasLambda));
-
-    // Add CORS OPTIONS for new endpoints
+    // Add CORS OPTIONS for agent-tests endpoints
     [
-      surveys,
-      surveyId,
-      questions,
-      run,
-      results,
-      projectSurveys,
-      projects,
-      projectId,
-      personas,
-      personaId,
-    ].forEach((resource) => {
-      resource.addMethod(
-        "OPTIONS",
-        new apigateway.MockIntegration({
-          integrationResponses: [
-            {
-              statusCode: "200",
-              responseParameters: {
-                "method.response.header.Access-Control-Allow-Origin": "'*'",
-                "method.response.header.Access-Control-Allow-Headers":
-                  "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
-                "method.response.header.Access-Control-Allow-Methods": "'GET,POST,DELETE,OPTIONS'",
-              },
-              responseTemplates: {
-                "application/json": '{"status": "OK"}',
-              },
-            },
-          ],
-          passthroughBehavior: apigateway.PassthroughBehavior.NEVER,
-          requestTemplates: {
-            "application/json": '{"status": "OK"}',
+      agentTests, agentTestsSuggest, agentTestsRun
+    ].forEach(resource => {
+      resource.addMethod("OPTIONS", new apigateway.MockIntegration({
+        integrationResponses: [{
+          statusCode: "200",
+          responseParameters: {
+            "method.response.header.Access-Control-Allow-Origin": "'*'",
+            "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
+            "method.response.header.Access-Control-Allow-Methods": "'GET,POST,DELETE,OPTIONS'"
           },
         }),
         {

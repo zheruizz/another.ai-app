@@ -15,6 +15,7 @@
     "routes/**/*.ts",
     "services/**/*.ts",
     "models/**/*.ts",
+    "src/**/*.ts",
     "**/*.ts",
     "**/*.test.ts"
   ]

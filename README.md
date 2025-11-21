@@ -16,10 +16,10 @@ It is scaffolded to support a modern, AWS-native, scalable architecture as descr
 1. See ADRs in [`dcsil/another.ai`](https://github.com/dcsil/another.ai/tree/master/architecture/adrs) for tech stack and architecture decisions.
 2. Each subfolder contains its own setup instructions and starter code.
 
-## Demo 1 Goal
+## Current Focus
 
-Deliver a minimal “Hello World” integration across the stack:  
-- Frontend calls backend API
-- Backend connects to database, S3, and LLM (stub)
-- Authentication via JWT (stub)
+Building an agent-based website testing MVP:
+- Agent test runners that execute tasks in real browsers (Playwright)
+- Task suggestion system for any URL
+- Test result tracking with videos and scores
 - Infrastructure and secrets managed via AWS
