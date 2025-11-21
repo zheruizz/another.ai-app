@@ -10,64 +10,142 @@ export class BackendStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    // VPC, Subnets, Security Group for Lambda <-> RDS
-    const vpc = ec2.Vpc.fromVpcAttributes(this, "AppVPC", {
-      vpcId: "vpc-004303f540511f4e6",
-      availabilityZones: ["us-east-1d"],
-      privateSubnetIds: [
-        "subnet-0b12559a29fa04790",
-        "subnet-043f5252ea218d1da",
-        "subnet-0ebc8ff15884a84b9",
-        "subnet-0f2c9953441f05d8c",
-        "subnet-08a1a7e857a96af6a",
-        "subnet-00aadc11d067e33ac",
+    //
+    // Parameters (allow deployers to provide DB/connectivity info or secrets)
+    //
+    const dbHostParam = new cdk.CfnParameter(this, "DBHost", {
+      type: "String",
+      default: "",
+      description: "Optional external DB host (leave empty if DB is managed separately/in another stack)",
+    });
+
+    const dbPortParam = new cdk.CfnParameter(this, "DBPort", {
+      type: "String",
+      default: "5432",
+      description: "Database port",
+    });
+
+    const dbUserParam = new cdk.CfnParameter(this, "DBUser", {
+      type: "String",
+      default: "master",
+      description: "Database user",
+    });
+
+    const dbNameParam = new cdk.CfnParameter(this, "DBName", {
+      type: "String",
+      default: "postgres",
+      description: "Database name",
+    });
+
+    const dbSecretNameParam = new cdk.CfnParameter(this, "DBSecretName", {
+      type: "String",
+      default: "",
+      description:
+        "If you store DB credentials in Secrets Manager, provide the secret name here (JSON with DB_PASSWORD or whatever your app expects). Leave empty to rely on DB_* env vars.",
+    });
+
+    // OpenAI secret name (keeps previous default but allows override)
+    const openAiSecretNameParam = new cdk.CfnParameter(this, "OpenAISecretName", {
+      type: "String",
+      default: "anotherai/openai-api",
+      description: "Secrets Manager secret name that contains OPENAI_API_KEY",
+    });
+
+    const openAiRegionParam = new cdk.CfnParameter(this, "OpenAISecretRegion", {
+      type: "String",
+      default: this.region || "us-east-1",
+      description: "Region where the OpenAI secret is stored",
+    });
+
+    //
+    // VPC and networking - CREATE resources (portable)
+    //
+    const vpc = new ec2.Vpc(this, "AppVPC", {
+      maxAzs: 2,
+      natGateways: 1,
+      subnetConfiguration: [
+        {
+          name: "public",
+          subnetType: ec2.SubnetType.PUBLIC,
+          cidrMask: 24,
+        },
+        {
+          name: "private",
+          subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
+          cidrMask: 24,
+        },
       ],
     });
 
-    const lambdaSG = ec2.SecurityGroup.fromSecurityGroupId(this, "LambdaSG", "sg-0dedb76750f96ebbd");
+    // Security group for Lambdas (all Lambdas that need VPC)
+    const lambdaSG = new ec2.SecurityGroup(this, "LambdaSecurityGroup", {
+      vpc,
+      allowAllOutbound: true,
+      description: "Security group for Lambdas",
+    });
 
+    // Security group for DB (if external DB in the same VPC or when you create RDS)
+    const dbSG = new ec2.SecurityGroup(this, "DatabaseSecurityGroup", {
+      vpc,
+      allowAllOutbound: false,
+      description: "Security group for database (Postgres)",
+    });
+
+    // Allow Lambda SG to access DB SG on Postgres port
+    dbSG.addIngressRule(lambdaSG, ec2.Port.tcp(5432), "Allow Lambda to connect to Postgres");
+
+    //
     // S3 bucket for /upload demo
+    //
     const demoBucket = new s3.Bucket(this, "DemoBucket", {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       autoDeleteObjects: true,
     });
 
-    // Common DB environment variables
-    const dbEnv = {
-      DB_HOST: "another-ai-db.c6bec2a8cygx.us-east-1.rds.amazonaws.com",
-      DB_PORT: "5432",
-      DB_USER: "master",
-      DB_PASSWORD: "OniiohnVY^8134#$45naf^3e",
-      DB_NAME: "postgres",
-      DB_SSL: "true",
+    //
+    // Build DB environment object without embedding any secret values.
+    // Prefer providing credentials via Secrets Manager (DBSecretName) or stable env vars passed at deploy time.
+    //
+    const dbEnv: { [key: string]: string } = {
+      DB_HOST: dbHostParam.valueAsString,
+      DB_PORT: dbPortParam.valueAsString,
+      DB_USER: dbUserParam.valueAsString,
+      DB_NAME: dbNameParam.valueAsString,
+      DB_SSL: "true", // keep default as true; override locally via .env if needed
+      // If a secrets manager name is provided, Lambdas can read it at runtime (we pass the name + region).
+      DB_SECRET_NAME: dbSecretNameParam.valueAsString,
+      DB_SECRET_REGION: this.region,
     };
 
-    // OpenAI secret + env config
-    const openAiSecretName = "anotherai/openai-api";
-    const openAiRegion = "us-east-1";
+    //
+    // OpenAI secret (we only reference by name so providers without the secret still synthesize)
+    //
+    const openAiSecretName = openAiSecretNameParam.valueAsString;
+    const openAiRegion = openAiRegionParam.valueAsString;
     const openAiSecret = secretsmanager.Secret.fromSecretNameV2(this, "OpenAISecret", openAiSecretName);
 
-    // Lambda for /hello and /upload
-    const helloLambda = new lambda.Function(this, "HelloLambda", {
-      runtime: lambda.Runtime.NODEJS_18_X,
-      handler: "dist/hello.handler",
-      code: lambda.Code.fromAsset("../backend/lambda-package"),
-      vpc,
-      securityGroups: [lambdaSG],
-      vpcSubnets: {
-        subnets: [
-          ec2.Subnet.fromSubnetId(this, "subnet1", "subnet-0b12559a29fa04790"),
-          ec2.Subnet.fromSubnetId(this, "subnet2", "subnet-043f5252ea218d1da"),
-          ec2.Subnet.fromSubnetId(this, "subnet3", "subnet-0ebc8ff15884a84b9"),
-          ec2.Subnet.fromSubnetId(this, "subnet4", "subnet-0f2c9953441f05d8c"),
-          ec2.Subnet.fromSubnetId(this, "subnet5", "subnet-08a1a7e857a96af6a"),
-          ec2.Subnet.fromSubnetId(this, "subnet6", "subnet-00aadc11d067e33ac"),
-        ],
-      },
-      environment: {
-        ...dbEnv,
-        BUCKET_NAME: demoBucket.bucketName,
-      },
+    //
+    // Helper to create a Lambda that needs VPC access
+    //
+    const createVpcLambda = (id: string, handler: string, env: { [key: string]: string }) =>
+      new lambda.Function(this, id, {
+        runtime: lambda.Runtime.NODEJS_18_X,
+        handler,
+        code: lambda.Code.fromAsset("../backend/lambda-package"),
+        vpc,
+        securityGroups: [lambdaSG],
+        vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+        environment: {
+          ...env,
+        },
+      });
+
+    //
+    // Hello Lambda (in VPC so it can access RDS)
+    //
+    const helloLambda = createVpcLambda("HelloLambda", "dist/hello.handler", {
+      ...dbEnv,
+      BUCKET_NAME: demoBucket.bucketName,
     });
 
     // Lambda for agent-tests endpoints
@@ -85,9 +163,11 @@ export class BackendStack extends cdk.Stack {
 
     demoBucket.grantReadWrite(helloLambda);
 
-    // API Gateway
+    //
+    // API Gateway & Routes
+    //
     const api = new apigateway.RestApi(this, "BackendApi", {
-      restApiName: "Backend Service"
+      restApiName: "Backend Service",
     });
 
     // /hello endpoint
@@ -95,7 +175,7 @@ export class BackendStack extends cdk.Stack {
     hello.addMethod("GET", new apigateway.LambdaIntegration(helloLambda));
     hello.addMethod("OPTIONS", new apigateway.MockIntegration({}));
 
-    // /upload endpoint
+    // /upload endpoint (same lambda)
     const upload = api.root.addResource("upload");
     upload.addMethod("POST", new apigateway.LambdaIntegration(helloLambda));
     upload.addMethod("OPTIONS", new apigateway.MockIntegration({}));
@@ -122,55 +202,40 @@ export class BackendStack extends cdk.Stack {
             "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
             "method.response.header.Access-Control-Allow-Methods": "'GET,POST,DELETE,OPTIONS'"
           },
-          responseTemplates: {
-            "application/json": "{\"status\": \"OK\"}"
-          }
-        }],
-        passthroughBehavior: apigateway.PassthroughBehavior.NEVER,
-        requestTemplates: {
-          "application/json": "{\"status\": \"OK\"}"
+        }),
+        {
+          methodResponses: [
+            {
+              statusCode: "200",
+              responseParameters: {
+                "method.response.header.Access-Control-Allow-Origin": true,
+                "method.response.header.Access-Control-Allow-Headers": true,
+                "method.response.header.Access-Control-Allow-Methods": true,
+              },
+            },
+          ],
         }
-      }), {
-        methodResponses: [{
-          statusCode: "200",
-          responseParameters: {
-            "method.response.header.Access-Control-Allow-Origin": true,
-            "method.response.header.Access-Control-Allow-Headers": true,
-            "method.response.header.Access-Control-Allow-Methods": true,
-          }
-        }],
-      });
+      );
     });
 
-    // Test DB Lambda
-    const testDbLambda = new lambda.Function(this, "TestDbLambda", {
-      runtime: lambda.Runtime.NODEJS_18_X,
-      handler: "dist/test-db.handler",
-      code: lambda.Code.fromAsset("../backend/lambda-package"),
-      vpc,
-      securityGroups: [lambdaSG],
-      vpcSubnets: {
-        subnets: [
-          ec2.Subnet.fromSubnetId(this, "subnet1test", "subnet-0b12559a29fa04790"),
-          ec2.Subnet.fromSubnetId(this, "subnet2test", "subnet-043f5252ea218d1da"),
-          ec2.Subnet.fromSubnetId(this, "subnet3test", "subnet-0ebc8ff15884a84b9"),
-          ec2.Subnet.fromSubnetId(this, "subnet4test", "subnet-0f2c9953441f05d8c"),
-          ec2.Subnet.fromSubnetId(this, "subnet5test", "subnet-08a1a7e857a96af6a"),
-          ec2.Subnet.fromSubnetId(this, "subnet6test", "subnet-00aadc11d067e33ac"),
-        ],
-      },
-      environment: dbEnv,
+    //
+    // Test DB Lambda (in VPC)
+    //
+    const testDbLambda = createVpcLambda("TestDbLambda", "dist/test-db.handler", {
+      ...dbEnv,
     });
 
     const testDb = api.root.addResource("test-db");
     testDb.addMethod("GET", new apigateway.LambdaIntegration(testDbLambda));
 
+    //
     // Test OpenAI Lambda - NO VPC needed (needs internet access for OpenAI API)
+    //
     const testOpenAiLambda = new lambda.Function(this, "TestOpenAiLambda", {
       runtime: lambda.Runtime.NODEJS_18_X,
       handler: "dist/test-openai.handler",
       code: lambda.Code.fromAsset("../backend/lambda-package"),
-      // Removed VPC config to allow internet access for OpenAI API
+      // no vpc so it has default internet access
       environment: {
         OPENAI_SECRET_NAME: openAiSecretName,
         OPENAI_REGION: openAiRegion,
@@ -180,9 +245,23 @@ export class BackendStack extends cdk.Stack {
       memorySize: 512,
     });
 
-    openAiSecret.grantRead(testOpenAiLambda);
+    try {
+      openAiSecret.grantRead(testOpenAiLambda);
+    } catch {
+      // best effort
+    }
 
     const testOpenAi = api.root.addResource("test-openai");
     testOpenAi.addMethod("GET", new apigateway.LambdaIntegration(testOpenAiLambda));
+
+    //
+    // Outputs to help deployers discover network/secret names
+    //
+    new cdk.CfnOutput(this, "VpcId", { value: vpc.vpcId });
+    new cdk.CfnOutput(this, "LambdaSecurityGroupId", { value: lambdaSG.securityGroupId });
+    new cdk.CfnOutput(this, "DatabaseSecurityGroupId", { value: dbSG.securityGroupId });
+    new cdk.CfnOutput(this, "DemoBucketName", { value: demoBucket.bucketName });
+    new cdk.CfnOutput(this, "ApiEndpoint", { value: api.url });
+    new cdk.CfnOutput(this, "OpenAISecretNameParameter", { value: openAiSecretName });
   }
 }
