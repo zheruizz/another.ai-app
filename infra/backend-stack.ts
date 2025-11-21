@@ -194,13 +194,24 @@ export class BackendStack extends cdk.Stack {
     [
       agentTests, agentTestsSuggest, agentTestsRun
     ].forEach(resource => {
-      resource.addMethod("OPTIONS", new apigateway.MockIntegration({
-        integrationResponses: [{
-          statusCode: "200",
-          responseParameters: {
-            "method.response.header.Access-Control-Allow-Origin": "'*'",
-            "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
-            "method.response.header.Access-Control-Allow-Methods": "'GET,POST,DELETE,OPTIONS'"
+      resource.addMethod(
+        "OPTIONS",
+        new apigateway.MockIntegration({
+          integrationResponses: [
+            {
+              statusCode: "200",
+              responseParameters: {
+                "method.response.header.Access-Control-Allow-Origin": "'*'",
+                "method.response.header.Access-Control-Allow-Headers":
+                  "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
+                "method.response.header.Access-Control-Allow-Methods":
+                  "'GET,POST,DELETE,OPTIONS'",
+              },
+            },
+          ],
+          passthroughBehavior: apigateway.PassthroughBehavior.NEVER,
+          requestTemplates: {
+            "application/json": '{"statusCode": 200}',
           },
         }),
         {
