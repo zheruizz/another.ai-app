@@ -12,6 +12,7 @@ __pycache__/
 
 # Backend
 backend/package-lock.json
+backend/lambda-package
 
 # Database
 database/*.sqlite
