@@ -5,7 +5,8 @@
   "scripts": {
     "build": "tsc",
     "test": "npx jest --config jest.config.js",
-    "migrate": "ts-node scripts/run-migration.ts"
+    "migrate": "ts-node scripts/run-migration.ts",
+    "dev:agent-tests": "ts-node src/dev-agent-tests.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.500.0",
