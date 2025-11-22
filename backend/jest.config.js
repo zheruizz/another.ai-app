@@ -1,5 +1,7 @@
 /** @type {import('jest').Config} */
 module.exports = {
+  preset: "ts-jest",
+  testEnvironment: "node",
   // if you have other config, keep it; just add these:
   roots: ["<rootDir>/src"],
 
